@@ -1,0 +1,12 @@
+[tool.ruff.lint]
+select = ["ALL"]
+ignore = ["D", "PLC0415"]
+per-file-ignores = { "__init__.py" = ["F401"] }
+
+[tool.mypy]
+strict = true
+disallow_any_explicit = true
+
+[tool.pyright]
+typeCheckingMode = "all"
+reportUnusedCallResult = true
