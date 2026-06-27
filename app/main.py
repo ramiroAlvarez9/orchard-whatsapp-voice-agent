@@ -6,6 +6,7 @@ from fastapi import BackgroundTasks, FastAPI, HTTPException, Query, Request
 
 from app.pipeline import run_pipeline
 from app.providers.llm.base import BaseLLMProvider
+from app.providers.loader import load_provider
 from app.providers.stt.base import BaseSTTProvider
 from app.providers.tts.base import BaseTTSProvider
 from app.whatsapp.receiver import WebhookPayload, download_audio
@@ -19,63 +20,18 @@ app = FastAPI(title="WhatsApp Voice Agent")
 VERIFY_TOKEN = os.environ["META_VERIFY_TOKEN"]
 
 
-def _get_stt_provider() -> BaseSTTProvider:
-    provider = os.environ.get("STT_PROVIDER", "orchardrun")
-    if provider == "orchardrun":
-        from app.providers.stt.orchardrun import OrchardRunSTTProvider
-
-        return OrchardRunSTTProvider()
-    if provider == "openai":
-        from app.providers.stt.openai import OpenAISTTProvider
-
-        return OpenAISTTProvider()
-    if provider == "deepgram":
-        from app.providers.stt.deepgram import DeepgramSTTProvider
-
-        return DeepgramSTTProvider()
-    msg = f"Unknown STT_PROVIDER: {provider}"
-    raise ValueError(msg)
-
-
-def _get_llm_provider() -> BaseLLMProvider:
-    provider = os.environ.get("LLM_PROVIDER", "openai")
-    if provider == "openai":
-        from app.providers.llm.openai import OpenAILLMProvider
-
-        return OpenAILLMProvider()
-    if provider == "anthropic":
-        from app.providers.llm.anthropic import AnthropicLLMProvider
-
-        return AnthropicLLMProvider()
-    if provider == "groq":
-        from app.providers.llm.groq import GroqLLMProvider
-
-        return GroqLLMProvider()
-    msg = f"Unknown LLM_PROVIDER: {provider}"
-    raise ValueError(msg)
-
-
-def _get_tts_provider() -> BaseTTSProvider:
-    provider = os.environ.get("TTS_PROVIDER", "orchardrun")
-    if provider == "orchardrun":
-        from app.providers.tts.orchardrun import OrchardRunTTSProvider
-
-        return OrchardRunTTSProvider()
-    if provider == "openai":
-        from app.providers.tts.openai import OpenAITTSProvider
-
-        return OpenAITTSProvider()
-    if provider == "elevenlabs":
-        from app.providers.tts.elevenlabs import ElevenLabsTTSProvider
-
-        return ElevenLabsTTSProvider()
-    msg = f"Unknown TTS_PROVIDER: {provider}"
-    raise ValueError(msg)
-
-
-stt_provider = _get_stt_provider()
-llm_provider = _get_llm_provider()
-tts_provider = _get_tts_provider()
+stt_provider = cast(
+    "BaseSTTProvider",
+    load_provider("stt", "STT_PROVIDER", "orchardrun", BaseSTTProvider),
+)
+llm_provider = cast(
+    "BaseLLMProvider",
+    load_provider("llm", "LLM_PROVIDER", "openai", BaseLLMProvider),
+)
+tts_provider = cast(
+    "BaseTTSProvider",
+    load_provider("tts", "TTS_PROVIDER", "orchardrun", BaseTTSProvider),
+)
 
 logger.info(
     "Providers loaded: STT=%s LLM=%s TTS=%s",

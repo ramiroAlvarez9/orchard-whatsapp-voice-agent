@@ -1,7 +1,7 @@
 [tool.ruff.lint]
 select = ["ALL"]
 ignore = ["D", "PLC0415"]
-per-file-ignores = { "__init__.py" = ["F401"] }
+per-file-ignores = { "__init__.py" = ["F401"], "tests/**" = ["D", "S101", "PLR2004", "PLC0415", "ARG002"] }
 
 [tool.mypy]
 strict = true
@@ -10,3 +10,7 @@ disallow_any_explicit = true
 [tool.pyright]
 typeCheckingMode = "all"
 reportUnusedCallResult = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"

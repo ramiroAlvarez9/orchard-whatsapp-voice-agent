@@ -16,6 +16,9 @@ python3 -m basedpyright app/
 # Auto-fix lint issues
 ruff check --fix app/
 
+# Run tests
+pytest
+
 # Run locally
 uvicorn app.main:app --reload --port 8000
 
@@ -46,9 +49,10 @@ User receives audio (WhatsApp)
 ### Key files
 
 | File | Role |
-|---|---|
+|---|---|---|
 | `app/main.py` | FastAPI app, `/webhook` GET (verify) + POST (receive), provider factories |
 | `app/pipeline.py` | STT→LLM→TTS orchestrator, in-memory conversation history per phone |
+| `app/providers/loader.py` | Dynamic provider loader using `importlib` + `inspect` |
 | `app/providers/stt/base.py` | `BaseSTTProvider` — `transcribe(bytes) → str` |
 | `app/providers/llm/base.py` | `BaseLLMProvider` — `complete(list[dict]) → str` |
 | `app/providers/tts/base.py` | `BaseTTSProvider` — `synthesize(str) → bytes` |
@@ -64,6 +68,8 @@ User receives audio (WhatsApp)
 | TTS | `orchardrun`, `openai`, `elevenlabs` | `orchardrun` |
 
 Switched via `STT_PROVIDER`, `LLM_PROVIDER`, `TTS_PROVIDER` env vars. All providers use raw `httpx` directly — no SDKs.
+
+Providers are loaded dynamically by name: setting `LLM_PROVIDER=deepseek` will load `app/providers/llm/deepseek.py` and discover the first class extending `BaseLLMProvider`. No registration or `if` chains needed.
 
 ## Conventions
 
@@ -150,3 +156,9 @@ _ = response.raise_for_status()
 ## Known gaps
 
 - In-memory conversation history — lost on restart
+
+## Adding a new provider
+
+1. Create `app/providers/<type>/<name>.py` with a class extending the base provider
+2. Set `<TYPE>_PROVIDER=<name>` and the corresponding API key env var
+3. No changes to `main.py` needed — the loader discovers the class automatically
