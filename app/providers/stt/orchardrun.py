@@ -17,7 +17,7 @@ class OrchardRunSTTProvider(BaseSTTProvider):
     def __init__(self) -> None:
         self.api_key = os.environ["ORCHARD_API_KEY"]
         self.base_url = os.environ.get("ORCHARD_BASE_URL", "https://api.orchardrun.com")
-        self.language = os.environ.get("STT_LANGUAGE", "es")
+        self.language = os.environ.get("STT_LANGUAGE", os.environ.get("LANGUAGE", "en"))
 
     @override
     async def transcribe(self, audio_bytes: bytes) -> str:

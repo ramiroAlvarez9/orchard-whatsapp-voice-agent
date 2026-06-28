@@ -16,9 +16,12 @@ class AnthropicLLMProvider(BaseLLMProvider):
     def __init__(self) -> None:
         self.api_key = os.environ["LLM_API_KEY"]
         self.model = os.environ.get("LLM_MODEL", "claude-3-5-haiku-latest")
-        self.system_prompt = os.environ.get(
-            "SYSTEM_PROMPT", "You are a helpful voice assistant for a business.",
+        _lang = os.environ.get("LANGUAGE", "en")
+        _default = (
+            "You are a helpful voice assistant for a business. "
+            f"Reply in {_lang}."
         )
+        self.system_prompt = os.environ.get("SYSTEM_PROMPT", _default)
 
     @override
     async def complete(self, messages: list[dict[str, str]]) -> str:

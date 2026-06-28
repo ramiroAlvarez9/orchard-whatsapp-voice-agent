@@ -18,9 +18,12 @@ class OpenAILLMProvider(BaseLLMProvider):
         self.api_key = os.environ["LLM_API_KEY"]
         self.base_url = os.environ.get("LLM_BASE_URL", "https://api.openai.com/v1")
         self.model = os.environ.get("LLM_MODEL", "gpt-4o-mini")
-        self.system_prompt = os.environ.get(
-            "SYSTEM_PROMPT", "You are a helpful voice assistant for a business.",
+        _lang = os.environ.get("LANGUAGE", "en")
+        _default = (
+            "You are a helpful voice assistant for a business. "
+            f"Reply in {_lang}."
         )
+        self.system_prompt = os.environ.get("SYSTEM_PROMPT", _default)
 
     @override
     async def complete(self, messages: list[dict[str, str]]) -> str:

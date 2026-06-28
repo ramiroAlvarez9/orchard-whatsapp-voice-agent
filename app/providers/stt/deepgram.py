@@ -14,7 +14,7 @@ class DeepgramSTTProvider(BaseSTTProvider):
 
     def __init__(self) -> None:
         self.api_key = os.environ["STT_API_KEY"]
-        self.language = os.environ.get("STT_LANGUAGE", "es")
+        self.language = os.environ.get("STT_LANGUAGE", os.environ.get("LANGUAGE", "en"))
 
     @override
     async def transcribe(self, audio_bytes: bytes) -> str:
