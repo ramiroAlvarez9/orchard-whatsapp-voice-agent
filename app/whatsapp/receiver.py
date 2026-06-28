@@ -32,9 +32,11 @@ class WebhookPayload:
     def __init__(self, data: dict[str, object]) -> None:
         """Initialize the payload parser and immediately parse the data."""
         self.raw = data
+        self.message_type: str = ""
         self.sender_phone: str = ""
         self.media_id: str = ""
         self.audio_mime_type: str = ""
+        self.text_body: str = ""
         self.phone_number_id: str = ""
         self._parse()
 
@@ -48,18 +50,25 @@ class WebhookPayload:
             messages = cast("list[dict[str, object]]", value["messages"])
             message = messages[0]
 
-            if message.get("type") != "audio":
-                msg = "Received non-audio message"
+            msg_type = cast("str", message.get("type", ""))
+            if msg_type == "text":
+                text_obj = cast("dict[str, object]", message["text"])
+                self.message_type = "text"
+                self.text_body = cast("str", text_obj["body"])
+            elif msg_type == "audio":
+                audio = cast("dict[str, object]", message["audio"])
+                self.message_type = "audio"
+                self.media_id = cast("str", audio["id"])
+                self.audio_mime_type = cast(
+                    "str", audio.get("mime_type", "audio/ogg"),
+                )
+            else:
+                msg = f"Received unsupported message type: {msg_type}"
                 raise ValueError(msg)
 
             metadata = cast("dict[str, object]", value["metadata"])
             self.phone_number_id = cast("str", metadata["phone_number_id"])
             self.sender_phone = cast("str", message["from"])
-            audio = cast("dict[str, object]", message["audio"])
-            self.media_id = cast("str", audio["id"])
-            self.audio_mime_type = cast(
-                "str", audio.get("mime_type", "audio/ogg"),
-            )
         except (KeyError, IndexError) as e:
             msg = f"Invalid webhook payload: {e}"
             raise ValueError(msg) from e

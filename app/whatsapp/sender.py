@@ -49,3 +49,23 @@ async def send_audio_message(to_phone: str, media_id: str) -> dict[str, object]:
         ))
         _ = response.raise_for_status()
         return cast("dict[str, object]", response.json())
+
+
+async def send_text_message(to_phone: str, body: str) -> dict[str, object]:
+    """Send a text message to a WhatsApp user."""
+    access_token = os.environ["META_ACCESS_TOKEN"]
+    phone_number_id = os.environ["META_PHONE_NUMBER_ID"]
+
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        response = await retry_request(lambda: client.post(
+            f"{META_BASE_URL}/{phone_number_id}/messages",
+            headers={"Authorization": f"Bearer {access_token}"},
+            json={
+                "messaging_product": "whatsapp",
+                "to": to_phone,
+                "type": "text",
+                "text": {"body": body},
+            },
+        ))
+        _ = response.raise_for_status()
+        return cast("dict[str, object]", response.json())

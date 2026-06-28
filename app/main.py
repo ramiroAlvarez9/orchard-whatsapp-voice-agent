@@ -4,13 +4,13 @@ from typing import Annotated, cast
 
 from fastapi import BackgroundTasks, FastAPI, HTTPException, Query, Request
 
-from app.pipeline import run_pipeline
+from app.pipeline import convert_to_ogg, llm_chat
 from app.providers.llm.base import BaseLLMProvider
 from app.providers.loader import load_provider
 from app.providers.stt.base import BaseSTTProvider
 from app.providers.tts.base import BaseTTSProvider
 from app.whatsapp.receiver import WebhookPayload, download_audio
-from app.whatsapp.sender import send_audio_message, upload_audio
+from app.whatsapp.sender import send_audio_message, send_text_message, upload_audio
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
@@ -67,40 +67,66 @@ async def receive_message(
     try:
         payload = WebhookPayload(body)
     except ValueError as e:
-        logger.info("Skipping non-audio or invalid message: %s", e)
+        logger.info("Skipping unsupported or invalid message: %s", e)
         return {"status": "ignored"}
 
-    logger.info(
-        "Audio message from %s (media_id=%s)",
-        payload.sender_phone,
-        payload.media_id,
-    )
+    if payload.message_type == "audio":
+        logger.info(
+            "Audio message from %s (media_id=%s)",
+            payload.sender_phone,
+            payload.media_id,
+        )
+    else:
+        logger.info(
+            "Text message from %s: %s",
+            payload.sender_phone,
+            payload.text_body[:200],
+        )
 
     background_tasks.add_task(
-        _process_audio,
-        media_id=payload.media_id,
+        _process_message,
+        message_type=payload.message_type,
         sender_phone=payload.sender_phone,
+        media_id=payload.media_id,
+        text_body=payload.text_body,
     )
     return {"status": "accepted"}
 
 
-async def _process_audio(media_id: str, sender_phone: str) -> None:
+RESPONSE_TYPE = os.environ.get("RESPONSE_TYPE", "audio")
+
+
+async def _process_message(
+    message_type: str,
+    sender_phone: str,
+    media_id: str,
+    text_body: str,
+) -> None:
     try:
-        audio_bytes = await download_audio(media_id)
-        logger.info("Downloaded %d bytes of audio", len(audio_bytes))
+        if message_type == "audio":
+            audio_bytes = await download_audio(media_id)
+            logger.info("Downloaded %d bytes of audio", len(audio_bytes))
+            user_text = await stt_provider.transcribe(audio_bytes)
+            logger.info("STT result: %s", user_text[:200])
+        else:
+            user_text = text_body
 
-        response_audio = await run_pipeline(
-            audio_bytes=audio_bytes,
-            sender_phone=sender_phone,
-            stt=stt_provider,
-            llm=llm_provider,
-            tts=tts_provider,
-        )
+        response_text = await llm_chat(user_text, sender_phone, llm_provider)
 
-        media_id_out = await upload_audio(response_audio, mime_type="audio/ogg")
+        if RESPONSE_TYPE == "text":
+            _ = await send_text_message(sender_phone, response_text)
+            logger.info("Sent text response to %s", sender_phone)
+            return
+
+        audio_response = await tts_provider.synthesize(response_text)
+        logger.info("TTS generated %d bytes", len(audio_response))
+
+        ogg_audio = convert_to_ogg(audio_response)
+
+        media_id_out = await upload_audio(ogg_audio, mime_type="audio/ogg")
         logger.info("Uploaded response audio (media_id=%s)", media_id_out)
 
         _ = await send_audio_message(sender_phone, media_id_out)
-        logger.info("Sent response to %s", sender_phone)
+        logger.info("Sent audio response to %s", sender_phone)
     except Exception:
-        logger.exception("Failed to process audio for %s", sender_phone)
+        logger.exception("Failed to process message for %s", sender_phone)

@@ -61,6 +61,22 @@ def convert_to_ogg(audio_bytes: bytes) -> bytes:
     return result.stdout
 
 
+async def llm_chat(
+    user_text: str,
+    sender_phone: str,
+    llm: BaseLLMProvider,
+) -> str:
+    """Run LLM completion with conversation history for the given phone."""
+    history = get_history(sender_phone)
+    add_to_history(sender_phone, "user", user_text)
+
+    response_text = await llm.complete(history)
+    logger.info("LLM response: %s", response_text[:200])
+
+    add_to_history(sender_phone, "assistant", response_text)
+    return response_text
+
+
 async def run_pipeline(
     audio_bytes: bytes,
     sender_phone: str,
@@ -72,13 +88,7 @@ async def run_pipeline(
     text = await stt.transcribe(audio_bytes)
     logger.info("STT result: %s", text[:200])
 
-    history = get_history(sender_phone)
-    add_to_history(sender_phone, "user", text)
-
-    response_text = await llm.complete(history)
-    logger.info("LLM response: %s", response_text[:200])
-
-    add_to_history(sender_phone, "assistant", response_text)
+    response_text = await llm_chat(text, sender_phone, llm)
 
     audio_response = await tts.synthesize(response_text)
     logger.info("TTS generated %d bytes", len(audio_response))
